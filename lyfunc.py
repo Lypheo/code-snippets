@@ -11,6 +11,18 @@ import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
 
+def YAEM(clip, denoise=False):
+    """the whole function is just moronic and ridicilously slow for a halo mask. use finedehalo or whatever instead"""
+    y = kf.getY(clip)
+    max = core.std.Maximum(y)
+    mask = core.std.MakeDiff(max, y)
+    denoise = mf.BM3D(mask, sigma=10) if denoise else False
+    conv = core.std.Convolution(denoise or mask, [1]*9)
+    min = core.std.Minimum(mask)
+    mask = core.std.Expr([mask, conv, min], "x y < z x ?").std.Binarize(135)
+    infl = mask.std.Maximum()
+    return core.std.Expr([mask, infl], "y x -")
+
 def cond_xpand(clip, min=4):
     mx = get_max(clip)
     matrix = [1]*4 + [0] + [1]*4

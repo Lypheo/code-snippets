@@ -146,10 +146,10 @@ def preview(clip, directory=r"F:\Subbing-Raws"):
 def sample_extract(src):
     """returns a sample clip of 18–19 5 seconds cuts"""
     return core.std.Splice([src[x:x+5*round(src.fps)] for x in range(0, src.num_frames, src.num_frames//17)])
-
+                          
 def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
     """ converts an .ass clip tag to a mask"""
-    bc = core.std.BlankClip(clip)
+    bc = core.std.ShufflePlanes(core.std.BlankClip(clip), 0, vs.GRAY)
     drawing = vectormask + fr"{{\an7\bord0\shad0\pos(0,0)\p1}}m 0 0 l {clip.width} 0 {clip.width} {clip.height} 0 {clip.height}"
     return core.sub.Subtitle(bc, drawing)
 

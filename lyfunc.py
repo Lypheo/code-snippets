@@ -11,8 +11,15 @@ import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
 
-def YAEM(clip, denoise=False):
-    """the whole function is just moronic and ridicilously slow for a halo mask. use finedehalo or whatever instead"""
+def YAEM(clip):
+    """about as fast as prewitt and sobel, probably much worse in accuracy. I’m just keeping this because I’m 
+    surprised something this simple actually seems to work"""
+    y = kf.getY(clip)
+    mx = core.std.Maximum(y)
+    return core.std.Expr([y, mx], "x y - abs exp")
+
+def YADHM(clip, denoise=False):
+    """the whole function is just moronic and useless. use finedehalo or whatever instead"""
     y = kf.getY(clip)
     max = core.std.Maximum(y)
     mask = core.std.MakeDiff(max, y)

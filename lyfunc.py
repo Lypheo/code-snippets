@@ -11,6 +11,12 @@ import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
 
+def cond_xpand(clip, min=4):
+    mx = get_max(clip)
+    matrix = [1]*4 + [0] + [1]*4
+    conv = core.std.Convolution(clip, matrix, divisor=8)
+    return core.std.Expr([conv, clip], f"y 0 = x {(mx // 8) * min} > {mx} 0 ? y ?")
+
 def nnedi(clip, factor=2, w=None, h=None, kernel="spline36"):
     """5 characters > 12 characters."""
     return nnedi3_rpow2.nnedi3_rpow2(clip, factor, w, h, kernel=kernel)

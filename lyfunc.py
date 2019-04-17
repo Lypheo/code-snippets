@@ -12,14 +12,14 @@ import nnedi3_rpow2 as nnedi3_rpow2
 """please don’t waste your time reading this"""
 
 def YAEM(clip):
-    """about as fast as prewitt and sobel, probably much worse in accuracy. I’m just keeping this because I’m 
+    """about as fast as prewitt and sobel, obviously much worse in accuracy. I’m just keeping this because I’m 
     surprised something this simple actually seems to work"""
     y = kf.getY(clip)
     mx = core.std.Maximum(y)
     return core.std.Expr([y, mx], "x y - abs exp")
 
 def YADHM(clip, denoise=False):
-    """the whole function is just moronic and useless. use finedehalo or whatever instead"""
+    """dehalo mask. the whole function is just moronic and useless. use finedehalo or whatever instead"""
     y = kf.getY(clip)
     max = core.std.Maximum(y)
     mask = core.std.MakeDiff(max, y)
@@ -31,6 +31,7 @@ def YADHM(clip, denoise=False):
     return core.std.Expr([mask, infl], "y x -")
 
 def cond_xpand(clip, min=4):
+    """make pixel white if <min> surrounding pixels are"""
     mx = get_max(clip)
     matrix = [1]*4 + [0] + [1]*4
     conv = core.std.Convolution(clip, matrix, divisor=8)
@@ -65,7 +66,7 @@ def overlayTypeset(clip, typecut_directory):
     return clip
 
 def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
-    """entirely useless. apply filter only to area of specified square"""
+    """entirely useless. apply filter only to the area of specified square"""
     crop = core.std.Crop(clip, left, right, top, bottom)
     filtered = filter(crop)
     with_borders = filtered.std.AddBorders(left, right, top, bottom)
@@ -100,7 +101,7 @@ def CompressToImage(srcp, image_path=None):
         return out
 
 def encode(clip, output_file, **args):  
-    """entirely useless except for my personal use"""
+    """entirely useless I guess"""
     x264_cmd = ["x264", 
                  "--demuxer",      "y4m",
                  "--preset",       "veryslow",
@@ -155,3 +156,9 @@ def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
 
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
+                          
+def bddiff(bd, tv, thres=0.1):
+    """returns all tv/bd pairs of differing frames"""
+    diff = core.std.PlaneStats(bd, tv)
+    l = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
+    return core.std.Interleave(core.std.DeleteFrames(bd, l), core.std.DeleteFrames(tv, l))

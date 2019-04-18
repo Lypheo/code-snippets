@@ -157,8 +157,16 @@ def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
                           
-def bddiff(bd, tv, thres=0.1):
+def bddiff(bd, tv, thres=0.1, draw_framenumber=False):
     """returns all tv/bd pairs of differing frames"""
     diff = core.std.PlaneStats(bd, tv)
     l = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
-    return core.std.Interleave(core.std.DeleteFrames(bd, l), core.std.DeleteFrames(tv, l))
+    return core.std.Interleave(core.std.DeleteFrames(bd if not draw_framenumber else bd.text.FrameNum(), l), 
+                               core.std.DeleteFrames(tv if not draw_framenumber else tv.text.FrameNum(), l))
+
+def pan(clip, w):                          
+	def f(n):
+		crop = int((n/clip.num_frames)*(clip.width-w))
+		return core.std.CropAbs(clip, w, clip.height, crop)
+		
+	return core.std.FrameEval(clip.std.CropAbs(w, clip.height), f)

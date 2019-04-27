@@ -11,15 +11,30 @@ import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
 
-def YAEM(clip):
+def bddiff(bd, tv, thresh):
+    """returns a clip of all pairs of differing frames"""
+    tv = core.text.FrameNum(tv).text.Text("TV", 9)
+    bd = core.text.FrameNum(bd).text.Text("BD", 9)
+    diff = core.std.PlaneStats(bd, tv)
+    unchanged = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
+    return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
+
+def sample_extract(src):
+    """returns a sample clip of 18–19 5 seconds cuts"""
+    return core.std.Splice([src[x:x+5*round(src.fps)] for x in range(0, src.num_frames, src.num_frames//17)])
+
+def stats(clip, clipb=None):
+    return core.std.PlaneStats(clip, clipb).text.FrameProps()
+
+def EM(clip):
     """about as fast as prewitt and sobel, obviously much worse in accuracy. I’m just keeping this because I’m 
     surprised something this simple actually seems to work"""
     y = kf.getY(clip)
     mx = core.std.Maximum(y)
     return core.std.Expr([y, mx], "x y - abs exp")
 
-def YADHM(clip, denoise=False):
-    """dehalo mask. the whole function is just moronic and useless. use finedehalo or whatever instead"""
+def YAEM(clip, denoise=False):
+    """the whole function is just moronic and ridicilously slow for a halo mask. use findehalo or whatever instead"""
     y = kf.getY(clip)
     max = core.std.Maximum(y)
     mask = core.std.MakeDiff(max, y)
@@ -31,7 +46,6 @@ def YADHM(clip, denoise=False):
     return core.std.Expr([mask, infl], "y x -")
 
 def cond_xpand(clip, min=4):
-    """make pixel white if <min> surrounding pixels are"""
     mx = get_max(clip)
     matrix = [1]*4 + [0] + [1]*4
     conv = core.std.Convolution(clip, matrix, divisor=8)
@@ -43,8 +57,8 @@ def nnedi(clip, factor=2, w=None, h=None, kernel="spline36"):
 
 def closegaps(clip):
     """this functon is most likely entirely uselss and I’m only keeping it because it took me way longer than it should have to write"""
-    matrixs = [[0]*i + [1] + [0]*(8-i) for i in range(9)][1::2]
-    clips = [core.std.Convolution(clip, matrix, divisor=1) for matrix in matrixs] 
+    matrices = [[0]*i + [1] + [0]*(8-i) for i in range(9)][1::2]
+    clips = [core.std.Convolution(clip, matrix, divisor=1) for matrices in matrixs] 
     return core.std.Expr([mask] + clips + [core.std.Convolution(mask, [1]*9)], "x 30 > x y z min a min b min 10 < x c ? ?")  
 
 def RemoveBlended(clip):
@@ -66,11 +80,11 @@ def overlayTypeset(clip, typecut_directory):
     return clip
 
 def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
-    """entirely useless. apply filter only to the area of specified square"""
+    """entirely useless. apply filter only to area of specified square"""
     crop = core.std.Crop(clip, left, right, top, bottom)
     filtered = filter(crop)
     with_borders = filtered.std.AddBorders(left, right, top, bottom)
-    mask = kgf.squaremask(clip, clip.width-left-right, clip.height-top-bottom, left, top)
+    mask = kf.squaremask(clip, clip.width-left-right, clip.height-top-bottom, left, top)
     return core.std.MaskedMerge(clip, with_borders, mask)
 
 def AverageClip(clip, image_path=None):
@@ -101,7 +115,7 @@ def CompressToImage(srcp, image_path=None):
         return out
 
 def encode(clip, output_file, **args):  
-    """entirely useless I guess"""
+    """entirely useless except for my personal use"""
     x264_cmd = ["x264", 
                  "--demuxer",      "y4m",
                  "--preset",       "veryslow",
@@ -144,10 +158,6 @@ def preview(clip, directory=r"F:\Subbing-Raws"):
     clip.output(f, y4m = True, progress_update = lambda value, endvalue: print(f"\rVapourSynth: {value}/{endvalue} ~ {100 * value // endvalue}% || mpv: ", end=""))
     process.communicate()
 
-def sample_extract(src):
-    """returns a sample clip of 18–19 5 seconds cuts"""
-    return core.std.Splice([src[x:x+5*round(src.fps)] for x in range(0, src.num_frames, src.num_frames//17)])
-                          
 def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
     """ converts an .ass clip tag to a mask"""
     bc = core.std.ShufflePlanes(core.std.BlankClip(clip), 0, vs.GRAY)
@@ -156,17 +166,3 @@ def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
 
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
-                          
-def bddiff(bd, tv, thres=0.1, draw_framenumber=False):
-    """returns all tv/bd pairs of differing frames"""
-    diff = core.std.PlaneStats(bd, tv)
-    l = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
-    return core.std.Interleave(core.std.DeleteFrames(bd if not draw_framenumber else bd.text.FrameNum(), l), 
-                               core.std.DeleteFrames(tv if not draw_framenumber else tv.text.FrameNum(), l))
-
-def pan(clip, w):                          
-	def f(n):
-		crop = int((n/clip.num_frames)*(clip.width-w))
-		return core.std.CropAbs(clip, w, clip.height, crop)
-		
-	return core.std.FrameEval(clip.std.CropAbs(w, clip.height), f)

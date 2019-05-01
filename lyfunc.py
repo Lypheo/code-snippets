@@ -11,6 +11,13 @@ import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
 
+def mosaic(clip, num):
+    """returns a mosaic preview frame of the clip composed of num x num frames"""
+    clip = clip.resize.Spline36(format=vs.RGB48, matrix_in_s="709")
+    frames = [clip[int(((clip.num_frames-1)/(num**2 - 1)) * i)].dpid.Dpid(clip.width // num, clip.height // num) for i in range(num**2)]
+    horizontal = [core.std.StackHorizontal(frames[i:i+num]) for i in range(0, num**2, num)]
+    return core.std.StackVertical(horizontal)
+
 def bddiff(bd, tv, thresh):
     """returns a clip of all pairs of differing frames"""
     tv = core.text.FrameNum(tv).text.Text("TV", 9)

@@ -1,5 +1,5 @@
 import ass, sys
-replace = [("'","’"), ("...", "…"), ("--", "–"), ("!?", "?!"), (r"\N-", r"\N –")]
+replace = [("'","’"), ("...", "…"), ("--", "–"), ("!?", "?!"), (r"\N-", r"\N– "), (r"\N–  ", r"\N– ")]
 quotes = ("„", "“")
 
 with open(sys.argv[1], "r", encoding="utf-8") as f:

@@ -1,6 +1,6 @@
 import vapoursynth as vs
 core = vs.core
-import os, sys, io, tempfile, subprocess
+import os, sys, io, tempfile, subprocess, math
 from datetime import timedelta
 import havsfunc as hf
 import fvsfunc as fs
@@ -10,6 +10,52 @@ import kagefunc as kf
 import nnedi3_rpow2 as nnedi3_rpow2
 
 """please don’t waste your time reading this"""
+
+def vfr(src)
+    diff = core.std.PlaneStats(src[:-1], src[1:])
+    duplicates = []
+
+    for i,f in enumerate(diff.frames()):
+        if f.props.PlaneStatsDiff < 0.001:
+            duplicates.append(i+1)
+            
+    def collide_successive(l):
+        outl = []
+        c = 1
+        for i in range(len(l)):
+            if c != 1: 
+                c -= 1
+                continue
+
+            if i+1 != len(l): 
+                nxt = l[i+1]
+
+                while nxt == l[i]+c:
+                    c += 1
+                    if i+c == len(l): break
+                    nxt = l[i+c]
+
+                outl.append((l[i], c))
+
+            else:
+                outl.append((l[i], 1))
+
+        return outl
+
+    dedupe_list = collide_successive(duplicates)
+
+    def extend_duration(n, f):
+        frame = f.copy()
+        frames, repetitions = zip(*dedupe_list)
+        if n+1 in frames:
+            frame.props._DurationNum *= repetitions[frames.index(n+1)] + 1
+        return frame
+        
+    out = core.std.ModifyFrame(src, src, extend_duration)
+    out = core.std.DeleteFrames(out, duplicates)
+    
+    return out
+
 
 def mosaic(clip, num):
     """returns a mosaic preview frame of the clip composed of num x num frames"""
@@ -33,37 +79,35 @@ def sample_extract(src):
 def stats(clip, clipb=None):
     return core.std.PlaneStats(clip, clipb).text.FrameProps()
 
-def EM(clip):
-    """about as fast as prewitt and sobel, obviously much worse in accuracy. I’m just keeping this because I’m 
-    surprised something this simple actually seems to work"""
+def YAEM(clip, denoise=False, threshold=140):
+    """                 256 > threshold > 0
+    the whole function is just moronic and ridicilously slow for a halo mask. use findehalo or whatever instead"""
     y = kf.getY(clip)
-    mx = core.std.Maximum(y)
-    return core.std.Expr([y, mx], "x y - abs exp")
-
-def YAEM(clip, denoise=False):
-    """the whole function is just moronic and ridicilously slow for a halo mask. use findehalo or whatever instead"""
-    y = kf.getY(clip)
-    max = core.std.Maximum(y)
-    mask = core.std.MakeDiff(max, y)
+    max_ = core.std.Maximum(y)
+    mask = core.std.MakeDiff(max_, y)
     denoise = mf.BM3D(mask, sigma=10) if denoise else False
     conv = core.std.Convolution(denoise or mask, [1]*9)
-    min = core.std.Minimum(mask)
-    mask = core.std.Expr([mask, conv, min], "x y < z x ?").std.Binarize(135)
+    min_ = core.std.Minimum(mask)
+    mask = core.std.Expr([mask, conv, min_], "x y < z x ?").std.Binarize(get_max(clip)*threshold/255)
     infl = mask.std.Maximum()
     return core.std.Expr([mask, infl], "y x -")
 
-def cond_xpand(clip, min=4):
-    mx = get_max(clip)
-    matrix = [1]*4 + [0] + [1]*4
-    conv = core.std.Convolution(clip, matrix, divisor=8)
-    return core.std.Expr([conv, clip], f"y 0 = x {(mx // 8) * min} > {mx} 0 ? y ?")
+def cond_xpand(clip, n=3, cond=4):
+    """expects binary clips"""
+    assert n % 2 != 0, "no."
+    max_value = get_max(clip)
+    x = (n-1)/2 * (1+n)
+    y = -1 + n**2
+    matrix = [1]*x + [0] + [1]*x
+    conv = core.std.Convolution(clip, matrix, divisor=y)
+    return core.std.Expr([conv, clip], f"x {math.floor((max_value / y) * cond)} >= {max_value} 0 ? y max")
 
 def nnedi(clip, factor=2, w=None, h=None, kernel="spline36"):
     """5 characters > 12 characters."""
     return nnedi3_rpow2.nnedi3_rpow2(clip, factor, w, h, kernel=kernel)
 
 def closegaps(clip):
-    """this functon is most likely entirely uselss and I’m only keeping it because it took me way longer than it should have to write"""
+    """most likely entirely uselss and I’m only keeping it because it took me way longer than it should have to write"""
     matrices = [[0]*i + [1] + [0]*(8-i) for i in range(9)][1::2]
     clips = [core.std.Convolution(clip, matrix, divisor=1) for matrices in matrixs] 
     return core.std.Expr([mask] + clips + [core.std.Convolution(mask, [1]*9)], "x 30 > x y z min a min b min 10 < x c ? ?")  
@@ -158,6 +202,10 @@ def extract_frame(file, n, checkfps=False):
     fps = float(eval(subprocess.run(f'ffprobe -v 0 -of csv=p=0 -select_streams 0 -show_entries stream=r_frame_rate "{file}"', stdout=subprocess.PIPE).stdout.decode('utf-8').strip())) if checkfps else 24000/1001
     subprocess.check_call(f'ffmpeg -y -ss {"0" + str(timedelta(seconds=float(n)/fps))} -i "{file}" -frames:v 1 {file}_{n}.png\"', shell=True)
 
+def save_frame(clip, n):
+    out = core.imwri.Write(clip[n].resize.Point(format=vs.RGBS, matrix_in_s="709"), "PNG", f"VS%d-screenshot_{n}.png")
+    out.get_frame(0)
+
 def preview(clip, directory=r"F:\Subbing-Raws"):
     """useless unless you insist on writing your script in some IDE/text editor and need a preview"""
     f = tempfile.NamedTemporaryFile(directory) #temp file instead of stdin so that it’s seekable
@@ -173,3 +221,42 @@ def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
 
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
+
+
+######################## tools for mask building, stolen from IFeelBloated's Vine.py ###################
+
+def dilation(src, radius):
+    for i in range(radius):
+        src = core.std.Maximum(src)
+    return src
+
+def erosion(src, radius):
+    for i in range(radius):
+        src = core.std.Minimum(src)
+    return src
+
+def closing(src, radius):
+    clip  = dilation(src, radius)
+    clip  = erosion(clip, radius)
+    return clip
+
+def opening(src, radius):
+    clip = erosion(src, radius)
+    clip = dilation(clip, radius)
+    return clip
+
+def gradient(src, radius):
+    erosion_ = erosion(src, radius)
+    dilation_ = dilation(src, radius)
+    clip = core.std.Expr([dilation_, erosion_], "x y -")
+    return clip
+
+def tophat(src, radius):
+    opening_ = opening(src, radius)
+    clip = core.std.Expr([src, opening_], "x y -")
+    return clip
+
+def blackhat(src, radius):
+    closing_ = closing(src, radius)
+    clip = core.std.Expr([src, closing_], "y x -")
+    return clip

@@ -72,9 +72,9 @@ def bddiff(bd, tv, thresh):
     unchanged = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
     return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
 
-def sample_extract(src):
-    """returns a sample clip of 18–19 5 seconds cuts"""
-    return core.std.Splice([src[x:x+5*round(src.fps)] for x in range(0, src.num_frames, src.num_frames//17)])
+def sample_extract(src, shots=18, shot_duration=5):
+    """returns a sample clip of <shots> scenes of <shot_duration> seconds respectively"""
+    return core.std.SelectEvery(src, src.num_frames//shots, range(0,round(src.fps*shot_duration))).std.AssumeFPS(src)
 
 def stats(clip, clipb=None):
     return core.std.PlaneStats(clip, clipb).text.FrameProps()

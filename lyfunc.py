@@ -66,9 +66,9 @@ def mosaic(clip, num):
 
 def bddiff(bd, tv, thresh):
     """returns a clip of all pairs of differing frames"""
+    diff = core.std.PlaneStats(bd, tv)
     tv = core.text.FrameNum(tv).text.Text("TV", 9)
     bd = core.text.FrameNum(bd).text.Text("BD", 9)
-    diff = core.std.PlaneStats(bd, tv)
     unchanged = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
     return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
 

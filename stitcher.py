@@ -2,6 +2,7 @@ from subprocess import check_output, run
 import os
 from optparse import OptionParser
 from vapoursynth import core
+import shutil
 
 def merge_intervals(l):
     out = sorted(l)
@@ -61,7 +62,12 @@ def cut_source_clips(kf_cuts, framecount):
 def join_clips():
     files = ["cuts/" + file for file in os.listdir("cuts/")]
     files.sort(key = lambda file: int(os.path.basename(file).split("-")[0]))
-    run(f"mkvmerge --output {os.path.splitext(src)[0]}_fixed.mkv " + " + ".join(files))
+    run(f"mkvmerge --output {os.path.splitext(src)[0]}_video.mkv " + " + ".join(files))
+
+def cleanup():
+    run(rf"ffmpeg -i {os.path.splitext(src)[0]}_video.mkv -i {src} -map 0:v -map 1 -map -1:v -c copy {os.path.splitext(src)[0]}_fixed.mkv -y")
+    os.remove(rf"{os.path.splitext(src)[0]}_video.mkv")
+    shutil.rmtree("cuts/")
 
 def main():
     parse()
@@ -77,6 +83,7 @@ def main():
     cut_replacement_clips(kf_cuts)
     cut_source_clips(kf_cuts, framecount)
     join_clips()
+    cleanup()
 
 if __name__ == '__main__':
     main()

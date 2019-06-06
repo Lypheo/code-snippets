@@ -24,7 +24,7 @@ def parse():
     parser = OptionParser(usage="py stitcher.py --base foo.mkv --vpy foo.vpy --x264-conf \"x264 <x264 parameters> \" --replace <frame ranges to replace>" ,description="""Fixes encoding mistakes by splicing in new clips encoded from the provided VapourSynth script.
                                          Since cutting is only possible on keyframes, frame ranges will be extended to the nearest previous or subsequent keyframes respectively.
                                          Requires vspipe, ffprobe and mkvmerge.
-                                         Will most likely break in various ways on everything than the video and setup I tested with, because I can’t code for shit.""")
+                                         Will most likely break in various ways on everything other than the video and setup I tested this with, because I can’t code for shit.""")
     parser.add_option("--base", dest="src",
                       help="base clip")
     parser.add_option("--vpy", dest="vpy",

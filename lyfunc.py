@@ -9,9 +9,37 @@ import mvsfunc as mf
 import kagefunc as kf
 import nnedi3_rpow2 as nnedi3_rpow2
 
-"""please don’t waste your time reading this"""
+def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3):
+    """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch"""
+
+    ow = src.width
+    oh = src.height
+    bits = src.format.bits_per_sample
+    sample_type = src.format.sample_type
+    
+    if sample_type == vs.INTEGER:
+        maxvalue = (1 << bits) - 1
+        thr = thr * maxvalue // 255
+    else:
+        maxvalue = 1
+        thr /= (235 - 16)
+
+    src_y = core.std.ShufflePlanes(src, planes=0, colorfamily=vs.GRAY)
+    descaled = ff.Resize(src_y, w, h, kernel=kernel, a1=b, a2=c, taps=taps, invks=True)
+    rescaled = ff.Resize(descaled, ow, oh, kernel=kernel, a1=b, a2=c, taps=taps)
+    diff = core.std.Expr([src_y, rescaled], 'x y - abs')
+    
+    mask = diff.std.Binarize(thr)
+    mask = closing(mask, 3)
+    inpand = cond_inpand(mask, n=5, cond=17)
+    black = core.std.BlankClip(inpand)
+    mask = core.std.FrameEval(mask, lambda n,f: inpand if f.props.PlaneStatsAverage > 0.001 else black, core.std.PlaneStats(inpand))
+    mask = dilation(mask, 25)
+
+    return mask
 
 def vfr(src)
+    """removes single duplicates and extends the previous frame’s duration"""
     diff = core.std.PlaneStats(src[:-1], src[1:])
     duplicates = []
 
@@ -92,9 +120,16 @@ def YAEM(clip, denoise=False, threshold=140):
     infl = mask.std.Maximum()
     return core.std.Expr([mask, infl], "y x -")
 
+def cond_inpand(clip, n=3, cond=4):
+    max_value = get_max(clip)
+    x = int((n-1)/2 * (1+n))
+    y = -1 + n**2
+    matrix = [1]*x + [0] + [1]*x
+    conv = core.std.Convolution(clip, matrix, divisor=y)
+    return core.std.Expr([conv, clip], f"x {math.floor((max_value / y) * (y-cond))} <= 0 {max_value} ? y min")
+
 def cond_xpand(clip, n=3, cond=4):
     """expects binary clips"""
-    assert n % 2 != 0, "no."
     max_value = get_max(clip)
     x = (n-1)/2 * (1+n)
     y = -1 + n**2
@@ -221,3 +256,26 @@ def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
 
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
+
+
+######################## morphological functions as an alternative to the unbearably slow built-ins ################
+
+def dilation(src, radius):
+    for i in range(radius):
+        src = core.std.Maximum(src)
+    return src
+
+def erosion(src, radius):
+    for i in range(radius):
+        src = core.std.Minimum(src)
+    return src
+
+def closing(src, radius):
+    clip  = dilation(src, radius)
+    clip  = erosion(clip, radius)
+    return clip
+    
+def opening(src, radius):
+    clip = erosion(src, radius)
+    clip = dilation(clip, radius)
+    return clip

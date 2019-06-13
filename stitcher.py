@@ -50,12 +50,14 @@ def cut_replacement_clips(kf_cuts):
 
 def cut_source_clips(kf_cuts, framecount):
     flat = sum(kf_cuts, [])
-    mkvmerge_ranges = [1, kf_cuts[0][0] + 1] if kf_cuts[0][0] != 0 else [] + \
-                      [[end+2,start+1] for end,start in zip(flat[1:-1:2], flat[2:-1:2])] + \
-                      [[kf_cuts[-1][-1]+2, framecount+1]] if kf_cuts[-1][-1] != framecount-1 else []
+    mkvmerge_ranges =  [[1, kf_cuts[0][0] + 1]] if kf_cuts[0][0] != 0 else []
+    mkvmerge_ranges += [[end+2,start+1] for end,start in zip(flat[1:-1:2], flat[2:-1:2])]
+    mkvmerge_ranges += [[kf_cuts[-1][-1]+2, framecount+1]] if kf_cuts[-1][-1] != framecount-1 else []
 
+    print(kf_cuts)
+    print(mkvmerge_ranges)
     split_parameter = ",".join(["-".join(map(str,framerange)) for framerange in mkvmerge_ranges])
-    run(rf"mkvmerge --output cuts/old.mkv {src} --split parts-frames:{split_parameter}", shell=True, check=True)
+    run(rf"mkvmerge -A -S --output cuts/old.mkv {src} --split parts-frames:{split_parameter}", shell=True, check=True)
     for i,v in enumerate(mkvmerge_ranges):
         os.rename(f"cuts/old-{i+1:03d}.mkv", f"cuts/{v[0]-1}-{v[1]-2}_old.mkv")
 
@@ -65,8 +67,8 @@ def join_clips():
     run(f"mkvmerge --output {os.path.splitext(src)[0]}_video.mkv " + " + ".join(files))
 
 def cleanup():
-    run(rf"ffmpeg -i {os.path.splitext(src)[0]}_video.mkv -i {src} -map 0:v -map 1 -map -1:v -c copy {os.path.splitext(src)[0]}_fixed.mkv -y")
-    os.remove(rf"{os.path.splitext(src)[0]}_video.mkv")
+    if os.path.exists(rf"{os.path.splitext(src)[0]}_video.mkv"):
+        os.remove(rf"{os.path.splitext(src)[0]}_video.mkv")
     shutil.rmtree("cuts/")
 
 def main():
@@ -83,7 +85,11 @@ def main():
     cut_replacement_clips(kf_cuts)
     cut_source_clips(kf_cuts, framecount)
     join_clips()
+    run(rf"ffmpeg -i {os.path.splitext(src)[0]}_video.mkv -i {src} -map 0:v -map 1 -map -1:v -c copy {os.path.splitext(src)[0]}_fixed.mkv -y") # mux audio
     cleanup()
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except:
+        cleanup()

@@ -10,14 +10,16 @@ def main(args):
     opt.add_option("--inputfile", "-i", action="store", help="video file or vpy script to cut the typecuts from", dest="inputfile")
     option, arg = opt.parse_args(args)
     
-    if not option.jobs: opt.error("job file missing, aborting…")
-    if not option.inputfile: opt.error("input file missing, aborting…")
+    assert option.jobs, "job file missing, aborting…"
+    assert option.inputfile, "input file missing, aborting…"
+    
     inputfile = option.inputfile
-    cutname, ext = option.cutname or os.path.splitext(os.path.basename(inputfile))
+    cutname, ext = os.path.splitext(os.path.basename(inputfile))
+    cutname = option.cutname or cutname 
 
     with open(option.jobs,'r') as jobfile:
         jobqueue = jobfile.read().split("\n")
-        jobqueue.remove("")
+        jobqueue = [i for i in jobqueue if i != ""]
 
     if not os.path.isdir(f"{os.getcwd()}\\Typecuts"):
     	os.mkdir(f"{os.getcwd()}\\Typecuts")
@@ -31,8 +33,8 @@ def main(args):
         print(f"\nStart frame: {start}\nEnd frame: {end}")
 
         output = os.path.join('Typecuts', f'{cutname}_{start}-{end}.mov')
-        subprocess.check_call(f'ffmpeg -ss {"0" + str(timedelta(seconds=float(start)/fps))} -i "{inputfile}" -frames:v {int(end)-int(start)+1} -c:v prores_ks -profile:v 4444 -q:v 4 -pix_fmt yuv444p10le -an "{output}"' if ext != ".vpy" else
-                              f'vspipe --y4m -s {start} -e {end} "{inputfile}" - | ffmpeg -i - -c:v prores_ks -profile:v 4444 -pix_fmt yuv444p10le -an -q:v 4 "{output}"', shell=True)
+        subprocess.check_call(f'ffmpeg -ss {"0" + str(timedelta(seconds=float(start)/fps))} -i "{inputfile}" -frames:v {int(end)-int(start)+1} -c:v prores_ks -profile:v 4444 -q:v 4 -y -pix_fmt yuv444p10le -an -fflags +genpts "{output}"' if ext != ".vpy" else
+                              f'vspipe --y4m -s {start} -e {end} "{inputfile}" - | ffmpeg -i - -c:v prores_ks -profile:v 4444 -pix_fmt yuv444p10le -an -q:v 4 -fflags +genpts -y "{output}"', shell=True)
 
     print("\nDone.")
 

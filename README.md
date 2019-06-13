@@ -15,5 +15,5 @@ Probably will break in various ways since 1. I can’t code for shit 2. I’ve h
 
 ## typecuts.py
 
-A simple script to automate the creation of typecuts for AFX.
+A simple script to automate the creation of prores typecuts for AFX.
 Can use either a video file or a VapourSynth script.

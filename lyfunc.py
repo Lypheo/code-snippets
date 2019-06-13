@@ -10,23 +10,13 @@ import kagefunc as kf
 import nnedi3_rpow2 as nnedi3_rpow2
 
 def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3):
-    """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch"""
-
-    ow = src.width
-    oh = src.height
-    bits = src.format.bits_per_sample
-    sample_type = src.format.sample_type
+    """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch. very imprecise and blocky, but hopefully covers everything """
     
-    if sample_type == vs.INTEGER:
-        maxvalue = (1 << bits) - 1
-        thr = thr * maxvalue // 255
-    else:
-        maxvalue = 1
-        thr /= (235 - 16)
+    thr = thr * maxvalue // 255 if src.format.sample_type == vs.INTEGER else thr / (235 - 16) 
 
     src_y = core.std.ShufflePlanes(src, planes=0, colorfamily=vs.GRAY)
     descaled = ff.Resize(src_y, w, h, kernel=kernel, a1=b, a2=c, taps=taps, invks=True)
-    rescaled = ff.Resize(descaled, ow, oh, kernel=kernel, a1=b, a2=c, taps=taps)
+    rescaled = ff.Resize(descaled, src.width, src.height, kernel=kernel, a1=b, a2=c, taps=taps)
     diff = core.std.Expr([src_y, rescaled], 'x y - abs')
     
     mask = diff.std.Binarize(thr)
@@ -39,7 +29,8 @@ def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3
     return mask
 
 def vfr(src)
-    """removes single duplicates and extends the previous frame’s duration"""
+    """removes any number of consecutive duplicates and extends the previous frame’s duration to compensate"""
+    
     diff = core.std.PlaneStats(src[:-1], src[1:])
     duplicates = []
 
@@ -109,7 +100,8 @@ def stats(clip, clipb=None):
 
 def YAEM(clip, denoise=False, threshold=140):
     """                 256 > threshold > 0
-    the whole function is just moronic and ridicilously slow for a halo mask. use findehalo or whatever instead"""
+    yet another edge mask.
+    probably useless. use findehalo or whatever instead"""
     y = kf.getY(clip)
     max_ = core.std.Maximum(y)
     mask = core.std.MakeDiff(max_, y)
@@ -121,6 +113,7 @@ def YAEM(clip, denoise=False, threshold=140):
     return core.std.Expr([mask, infl], "y x -")
 
 def cond_inpand(clip, n=3, cond=4):
+    """1 if <cond> pixels in the nxn neighbourhood are 1 else 0"""
     max_value = get_max(clip)
     x = int((n-1)/2 * (1+n))
     y = -1 + n**2
@@ -129,7 +122,6 @@ def cond_inpand(clip, n=3, cond=4):
     return core.std.Expr([conv, clip], f"x {math.floor((max_value / y) * (y-cond))} <= 0 {max_value} ? y min")
 
 def cond_xpand(clip, n=3, cond=4):
-    """expects binary clips"""
     max_value = get_max(clip)
     x = (n-1)/2 * (1+n)
     y = -1 + n**2
@@ -142,9 +134,9 @@ def nnedi(clip, factor=2, w=None, h=None, kernel="spline36"):
     return nnedi3_rpow2.nnedi3_rpow2(clip, factor, w, h, kernel=kernel)
 
 def closegaps(clip):
-    """most likely entirely uselss and I’m only keeping it because it took me way longer than it should have to write"""
+    """I have no idea what this does tbh"""
     matrices = [[0]*i + [1] + [0]*(8-i) for i in range(9)][1::2]
-    clips = [core.std.Convolution(clip, matrix, divisor=1) for matrices in matrixs] 
+    clips = [core.std.Convolution(clip, matrix, divisor=1) for matrix in matrices] 
     return core.std.Expr([mask] + clips + [core.std.Convolution(mask, [1]*9)], "x 30 > x y z min a min b min 10 < x c ? ?")  
 
 def RemoveBlended(clip):
@@ -166,7 +158,7 @@ def overlayTypeset(clip, typecut_directory):
     return clip
 
 def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
-    """entirely useless. apply filter only to area of specified square"""
+    """apply filter only to area of specified square"""
     crop = core.std.Crop(clip, left, right, top, bottom)
     filtered = filter(crop)
     with_borders = filtered.std.AddBorders(left, right, top, bottom)
@@ -174,7 +166,7 @@ def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
     return core.std.MaskedMerge(clip, with_borders, mask)
 
 def AverageClip(clip, image_path=None):
-    """entirely useless. averages the clip to one frame"""
+    """averages the clip to one frame"""
     src = clip.resize.Point(format=vs.YUV444PS)
     final = core.std.BlankClip(src[0])
     for i in range(src.num_frames):
@@ -188,7 +180,7 @@ def AverageClip(clip, image_path=None):
         return final
 
 def CompressToImage(srcp, image_path=None):
-    """entirely useless. compresses the clip horizontally such that each column represents one frame """
+    """compresses the clip horizontally such that each column represents one frame """
     src = src[::src.num_frames // src.height]
     w1 = core.fmtc.resample(src, 1, src.height)
     frames = [w1[i] for i in range(w1.num_frames)]
@@ -201,7 +193,6 @@ def CompressToImage(srcp, image_path=None):
         return out
 
 def encode(clip, output_file, **args):  
-    """entirely useless except for my personal use"""
     x264_cmd = ["x264", 
                  "--demuxer",      "y4m",
                  "--preset",       "veryslow",

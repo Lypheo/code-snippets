@@ -10,8 +10,8 @@ import kagefunc as kf
 import nnedi3_rpow2 as nnedi3_rpow2
 
 def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3):
-    """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch. very imprecise and blocky, but hopefully covers everything """
-    
+    """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch"""
+
     thr = thr * maxvalue // 255 if src.format.sample_type == vs.INTEGER else thr / (235 - 16) 
 
     src_y = core.std.ShufflePlanes(src, planes=0, colorfamily=vs.GRAY)
@@ -28,9 +28,7 @@ def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3
 
     return mask
 
-def vfr(src)
-    """removes any number of consecutive duplicates and extends the previous frame’s duration to compensate"""
-    
+def vfr(src):
     diff = core.std.PlaneStats(src[:-1], src[1:])
     duplicates = []
 
@@ -91,6 +89,20 @@ def bddiff(bd, tv, thresh):
     unchanged = [i for i,f in enumerate(diff.frames()) if f.props["PlaneStatsDiff"] < thresh]
     return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
 
+def diff_sort(bd, tv):
+    diff = core.std.PlaneStats(bd, tv)
+    diffs = [(f.props.PlaneStatsDiff, i) for i,f in enumerate(diff.frames())]        
+    diffs.sort(key = lambda x: x[0], reverse=True)
+
+    bd_text = core.text.FrameNum(bd).text.Text("bd", 9)
+    tv_text = core.text.FrameNum(tv).text.Text("tv", 9)
+
+    out = core.std.BlankClip(bd, length=1)
+    for d in diffs:
+        out += core.std.Splice([bd_text[d[1]].text.Text(f"Difference: {d[0]}", 2), tv_text[d[1]].text.Text(f"Difference: {d[0]}", 2)])
+        
+    return out[1:]
+
 def sample_extract(src, shots=18, shot_duration=5):
     """returns a sample clip of <shots> scenes of <shot_duration> seconds respectively"""
     return core.std.SelectEvery(src, src.num_frames//shots, range(0,round(src.fps*shot_duration))).std.AssumeFPS(src)
@@ -100,8 +112,7 @@ def stats(clip, clipb=None):
 
 def YAEM(clip, denoise=False, threshold=140):
     """                 256 > threshold > 0
-    yet another edge mask.
-    probably useless. use findehalo or whatever instead"""
+    the whole function is just moronic and ridicilously slow for a halo mask. use findehalo or whatever instead"""
     y = kf.getY(clip)
     max_ = core.std.Maximum(y)
     mask = core.std.MakeDiff(max_, y)
@@ -113,7 +124,6 @@ def YAEM(clip, denoise=False, threshold=140):
     return core.std.Expr([mask, infl], "y x -")
 
 def cond_inpand(clip, n=3, cond=4):
-    """1 if <cond> pixels in the nxn neighbourhood are 1 else 0"""
     max_value = get_max(clip)
     x = int((n-1)/2 * (1+n))
     y = -1 + n**2
@@ -122,6 +132,7 @@ def cond_inpand(clip, n=3, cond=4):
     return core.std.Expr([conv, clip], f"x {math.floor((max_value / y) * (y-cond))} <= 0 {max_value} ? y min")
 
 def cond_xpand(clip, n=3, cond=4):
+    """expects binary clips"""
     max_value = get_max(clip)
     x = (n-1)/2 * (1+n)
     y = -1 + n**2
@@ -134,7 +145,7 @@ def nnedi(clip, factor=2, w=None, h=None, kernel="spline36"):
     return nnedi3_rpow2.nnedi3_rpow2(clip, factor, w, h, kernel=kernel)
 
 def closegaps(clip):
-    """I have no idea what this does tbh"""
+    """most likely entirely uselss and I’m only keeping it because it took me way longer than it should have to write"""
     matrices = [[0]*i + [1] + [0]*(8-i) for i in range(9)][1::2]
     clips = [core.std.Convolution(clip, matrix, divisor=1) for matrix in matrices] 
     return core.std.Expr([mask] + clips + [core.std.Convolution(mask, [1]*9)], "x 30 > x y z min a min b min 10 < x c ? ?")  
@@ -158,7 +169,7 @@ def overlayTypeset(clip, typecut_directory):
     return clip
 
 def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
-    """apply filter only to area of specified square"""
+    """entirely useless. apply filter only to area of specified square"""
     crop = core.std.Crop(clip, left, right, top, bottom)
     filtered = filter(crop)
     with_borders = filtered.std.AddBorders(left, right, top, bottom)
@@ -166,7 +177,7 @@ def filter_squaremask(clip, filter, left=0, right=0, top=0, bottom=0):
     return core.std.MaskedMerge(clip, with_borders, mask)
 
 def AverageClip(clip, image_path=None):
-    """averages the clip to one frame"""
+    """entirely useless. averages the clip to one frame"""
     src = clip.resize.Point(format=vs.YUV444PS)
     final = core.std.BlankClip(src[0])
     for i in range(src.num_frames):
@@ -179,8 +190,8 @@ def AverageClip(clip, image_path=None):
     else:
         return final
 
-def CompressToImage(srcp, image_path=None):
-    """compresses the clip horizontally such that each column represents one frame """
+def CompressToImage(src, image_path=None):
+    """entirely useless. compresses the clip horizontally such that each column represents one frame """
     src = src[::src.num_frames // src.height]
     w1 = core.fmtc.resample(src, 1, src.height)
     frames = [w1[i] for i in range(w1.num_frames)]
@@ -193,6 +204,7 @@ def CompressToImage(srcp, image_path=None):
         return out
 
 def encode(clip, output_file, **args):  
+    """entirely useless except for my personal use"""
     x264_cmd = ["x264", 
                  "--demuxer",      "y4m",
                  "--preset",       "veryslow",
@@ -232,11 +244,15 @@ def save_frame(clip, n):
     out = core.imwri.Write(clip[n].resize.Point(format=vs.RGBS, matrix_in_s="709"), "PNG", f"VS%d-screenshot_{n}.png")
     out.get_frame(0)
 
-def preview(clip, directory=r"F:\Subbing-Raws"):
+def preview(clip, directory=r"F:\Subbing-Raws", point=False):
     """useless unless you insist on writing your script in some IDE/text editor and need a preview"""
-    f = tempfile.NamedTemporaryFile(directory) #temp file instead of stdin so that it’s seekable
-    process = subprocess.Popen(["mpv", f.name]) 
-    clip.output(f, y4m = True, progress_update = lambda value, endvalue: print(f"\rVapourSynth: {value}/{endvalue} ~ {100 * value // endvalue}% || mpv: ", end=""))
+    f = tempfile.NamedTemporaryFile(dir=directory) #temp file instead of stdin so that it’s seekable
+    process = subprocess.Popen(["mpv", "--scale", "oversample" if point else "ewa_lanczossharp", f.name])
+    if clip.format.color_family not in [vs.YUV, vs.GRAY]:
+        prev = clip.resize.Bicubic(format=vs.YUV444P16, matrix_s="709")
+    else:
+        prev = clip
+    prev.output(f, y4m = True, progress_update = lambda value, endvalue: print(f"\rVapourSynth: {value}/{endvalue} ~ {100 * value // endvalue}% || mpv: ", end=""))
     process.communicate()
 
 def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
@@ -249,7 +265,7 @@ def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
 
 
-######################## morphological functions as an alternative to the unbearably slow built-ins ################
+######################## morphological functions (with a square structuring element) as an alternative to the unbearably slow built-ins ################
 
 def dilation(src, radius):
     for i in range(radius):

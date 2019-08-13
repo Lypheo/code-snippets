@@ -29,6 +29,7 @@ def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3
     return mask
 
 def vfr(src):
+    """removes any number of consecutive duplicates and extends the previous frame’s duration to compensate"""
     diff = core.std.PlaneStats(src[:-1], src[1:])
     duplicates = []
 
@@ -90,6 +91,7 @@ def bddiff(bd, tv, thresh):
     return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
 
 def diff_sort(bd, tv):
+    """returns a clip of all frame pairs sorted by the magnitude of their difference"""
     diff = core.std.PlaneStats(bd, tv)
     diffs = [(f.props.PlaneStatsDiff, i) for i,f in enumerate(diff.frames())]        
     diffs.sort(key = lambda x: x[0], reverse=True)
@@ -124,6 +126,7 @@ def YAEM(clip, denoise=False, threshold=140):
     return core.std.Expr([mask, infl], "y x -")
 
 def cond_inpand(clip, n=3, cond=4):
+    """1 if <cond> pixels in the nxn neighbourhood are 1, else 0"""
     max_value = get_max(clip)
     x = int((n-1)/2 * (1+n))
     y = -1 + n**2
@@ -204,7 +207,6 @@ def CompressToImage(src, image_path=None):
         return out
 
 def encode(clip, output_file, **args):  
-    """entirely useless except for my personal use"""
     x264_cmd = ["x264", 
                  "--demuxer",      "y4m",
                  "--preset",       "veryslow",

@@ -9,6 +9,29 @@ import mvsfunc as mf
 import kagefunc as kf
 import nnedi3_rpow2 as nnedi3_rpow2
 
+def sigmoid_scale(clip, w, h, filter, center=0.5, slope=6.5):
+    """See: http://www.imagemagick.org/Usage/resize/#resize_sigmoidal"""
+    def apply_sigmoid(x, center=center, slope=slope, inverse=False):
+        MIN = 1/(1+math.exp(center*slope))
+        MAX = 1/(1+math.exp(slope*(center-1)))
+        if not inverse:
+            sigm = 1/(1+math.exp(slope*(center-x)))
+            return (sigm - MIN) / (MAX-MIN)
+        else:
+            xi = MIN + x*(MAX-MIN)
+            return center - math.log((1-xi)/xi)/slope
+    
+    v = [i*(1/(65536-1)) for i in range(65536)]
+    lut = [apply_sigmoid(i, center=.5, inverse=True) for i in v]
+    lut_inverse = [apply_sigmoid(i, center=.5, inverse=False) for i in v]
+    
+    linear = core.resize.Bicubic(clip, format=vs.RGB48, transfer_in_s="709", transfer_s="linear")
+    sigmoid = core.std.Lut(linear, lutf=lut, floatout=True)
+    resized = filter(sigmoid, w, h, format=vs.RGB48)
+    inverted_sigmoid = core.std.Lut(resized, lutf=lut_inverse, floatout=True)
+    gamma = core.resize.Bicubic(inverted_sigmoid, format=clip.format, transfer_in_s="linear", transfer_s="709")
+    return gamma
+
 def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3):
     """mask particularly pesky higher-res text overlays that the usual diff + expand can’t catch"""
 

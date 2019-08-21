@@ -51,14 +51,9 @@ def text_mask(src, w=1280, h=720, thr=7, kernel='bilinear', b=1/3, c=1/3, taps=3
 
     return mask
 
-def vfr(src):
-    """removes any number of consecutive duplicates and extends the previous frame’s duration to compensate"""
+def vfr(src, thresh=0.001):
     diff = core.std.PlaneStats(src[:-1], src[1:])
-    duplicates = []
-
-    for i,f in enumerate(diff.frames()):
-        if f.props.PlaneStatsDiff < 0.001:
-            duplicates.append(i+1)
+    duplicates = [i+1 for i,f in enumerate(diff.frames()) if f.props.PlaneStatsDiff < thresh]
             
     def collide_successive(l):
         outl = []
@@ -73,11 +68,11 @@ def vfr(src):
 
                 while nxt == l[i]+c:
                     c += 1
-                    if i+c == len(l): break
+                    if i+c == len(l):
+                        break
                     nxt = l[i+c]
 
                 outl.append((l[i], c))
-
             else:
                 outl.append((l[i], 1))
 
@@ -96,7 +91,6 @@ def vfr(src):
     out = core.std.DeleteFrames(out, duplicates)
     
     return out
-
 
 def mosaic(clip, num):
     """returns a mosaic preview frame of the clip composed of num x num frames"""

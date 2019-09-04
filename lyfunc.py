@@ -118,7 +118,7 @@ def diff_sort(bd, tv):
 
     out = core.std.Splice([bd_text[d[1]].text.Text(f"Difference: {d[0]}", 2) + tv_text[d[1]].text.Text(f"Difference: {d[0]}", 2) for d in diffs])
         
-    return out[1:]
+    return out
 
 def sample_extract(src, shots=18, shot_duration=5):
     """returns a sample clip of <shots> scenes of <shot_duration> seconds respectively"""

@@ -108,7 +108,7 @@ def bddiff(bd, tv, thresh):
     return core.std.Interleave([core.std.DeleteFrames(bd, unchanged), core.std.DeleteFrames(tv, unchanged)])
 
 def diff_sort(bd, tv):
-    """returns a clip of all frame pairs sorted by the magnitude of their difference"""
+    """returns a clip of all frame pairs sorted by the magnitude of their difference. untested though ヽ( ﾟヮ・)ノ """
     diff = core.std.PlaneStats(bd, tv)
     diffs = [(f.props.PlaneStatsDiff, i) for i,f in enumerate(diff.frames())]        
     diffs.sort(key = lambda x: x[0], reverse=True)
@@ -116,9 +116,7 @@ def diff_sort(bd, tv):
     bd_text = core.text.FrameNum(bd).text.Text("bd", 9)
     tv_text = core.text.FrameNum(tv).text.Text("tv", 9)
 
-    out = core.std.BlankClip(bd, length=1)
-    for d in diffs:
-        out += core.std.Splice([bd_text[d[1]].text.Text(f"Difference: {d[0]}", 2), tv_text[d[1]].text.Text(f"Difference: {d[0]}", 2)])
+    out = core.std.Splice([bd_text[d[1]].text.Text(f"Difference: {d[0]}", 2) + tv_text[d[1]].text.Text(f"Difference: {d[0]}", 2) for d in diffs])
         
     return out[1:]
 

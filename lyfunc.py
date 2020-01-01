@@ -274,9 +274,9 @@ def preview(clip, directory=r"F:\Subbing-Raws", point=False):
 
 def assmask(clip: vs.VideoNode, vectormask: str) -> vs.VideoNode:
     """ converts an .ass clip tag to a mask"""
-    bc = core.std.ShufflePlanes(core.std.BlankClip(clip), 0, vs.GRAY)
     drawing = vectormask + fr"{{\an7\bord0\shad0\pos(0,0)\p1}}m 0 0 l {clip.width} 0 {clip.width} {clip.height} 0 {clip.height}"
-    return core.sub.Subtitle(bc, drawing)
+    c = core.sub.Subtitle(clip, drawing, blend=False)
+    return c[1]
 
 def get_max(clip):
     return 1 if clip.format.sample_type == vs.FLOAT else (1 << clip.format.bits_per_sample) - 1 
